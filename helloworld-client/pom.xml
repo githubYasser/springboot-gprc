@@ -51,6 +51,13 @@
 			<artifactId>grpc-stub</artifactId>
 			<version>1.14.0</version>
 		</dependency>
+		<!-- https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static -->
+		<dependency>
+			<groupId>io.netty</groupId>
+			<artifactId>netty-tcnative-boringssl-static</artifactId>
+			<version>2.0.17.Final</version>
+		</dependency>
+
 
 		<dependency>
 			<groupId>com.example</groupId>

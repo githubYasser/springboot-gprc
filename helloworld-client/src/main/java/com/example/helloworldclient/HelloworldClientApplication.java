@@ -6,33 +6,39 @@ import com.example.demo.HelloRequest;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import javax.net.ssl.SSLException;
+import java.io.File;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 
 @SpringBootApplication
 public class HelloworldClientApplication {
 
 
-    private static final Logger logger = Logger.getLogger(HelloworldClientApplication.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(HelloworldClientApplication.class);
 
     private final ManagedChannel channel;
     private GreeterGrpc.GreeterBlockingStub blockingStub;
 
 
-    /**
-     * Construct client for accessing RouteGuide server at {@code host:port}.
-     */
-    public HelloworldClientApplication(String host, int port) {
-        this(ManagedChannelBuilder.forAddress(host, port).usePlaintext());
-    }
+    // Without authentication
+    /**public HelloworldClientApplication(String host, int port) {
+        channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build();
+        blockingStub = GreeterGrpc.newBlockingStub(channel);
+    }**/
 
-    /**
-     * Construct client for accessing RouteGuide server using the existing channel.
-     */
-    public HelloworldClientApplication(ManagedChannelBuilder<?> channelBuilder) {
-        channel = channelBuilder.build();
+    // with mtls
+    public HelloworldClientApplication(String host, int port, File trustCertCollectionFilePath, File certChainFilePath, File privateKeyFilePath) throws SSLException {
+        channel = NettyChannelBuilder.forAddress(host, port).sslContext(GrpcSslContexts.forClient()
+                //.trustManager(trustCertCollectionFilePath)
+                .trustManager(InsecureTrustManagerFactory.INSTANCE) // disable certificate validation
+                .keyManager(certChainFilePath, privateKeyFilePath).build()).build();
         blockingStub = GreeterGrpc.newBlockingStub(channel);
 
     }
@@ -47,7 +53,7 @@ public class HelloworldClientApplication {
         HelloReply response;
         try {
             response = blockingStub.sayHello(request);
-            logger.info(String.valueOf(response));
+            logger.debug(String.valueOf(response));
         } catch (StatusRuntimeException e) {
             return;
         }
@@ -59,7 +65,22 @@ public class HelloworldClientApplication {
      */
     public static void main(String[] args) throws InterruptedException {
 
-        HelloworldClientApplication client = new HelloworldClientApplication("localhost", 8980);
+        String caChain = "ca-chain.cert.pem";
+        String clientCertificate = "localhost.cert.pem";
+        String clientPrivateKey = "pkcs8_key.pem";
+
+        ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+
+        File caChainFile = new File(classLoader.getResource(caChain).getFile());
+        File clientCertificateFile = new File(classLoader.getResource(clientCertificate).getFile());
+        File clientPrivateKeyFile = new File(classLoader.getResource(clientPrivateKey).getFile());
+
+        HelloworldClientApplication client = null;
+        try {
+            client = new HelloworldClientApplication("localhost", 8980, caChainFile, clientCertificateFile, clientPrivateKeyFile);
+        } catch (SSLException e) {
+            logger.info(e.getMessage());
+        }
         try {
             client.callSayHello();
 
